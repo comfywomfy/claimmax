@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClaimMax - Airbnb Damage Claims</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            overflow-x: auto;
+        }
+
+        .nav-tab {
+            flex: 1;
+            min-width: 100px;
+            padding: 15px 10px;
+            text-align: center;
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .nav-tab.active {
+            color: #667eea;
+            background: white;
+        }
+
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .photo-upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+
+        .photo-upload-area:hover {
+            background: #f0f2ff;
+            border-color: #5568d3;
+        }
+
+        .photo-upload-area input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .photos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .photo-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 1;
+            background: #f8f9fa;
+        }
+
+        .photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .photo-item-actions {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .photo-item-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-item-btn:hover {
+            background: rgba(0,0,0,0.9);
+        }
+
+        .photo-annotation {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px;
+            font-size: 11px;
+            max-height: 60px;
+            overflow-y: auto;
+        }
+
+        .damage-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .damage-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .damage-category {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 15px;
+        }
+
+        .damage-cost {
+            font-size: 18px;
+            font-weight: 700;
+            color: #28a745;
+        }
+
+        .damage-description {
+            font-size: 13px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .tip-card {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tip-card h3 {
+            color: #856404;
+            font-size: 15px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tip-card p {
+            color: #856404;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .total-claim {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .total-claim h2 {
+            font-size: 16px;
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+
+        .total-claim .amount {
+            font-size: 36px;
+            font-weight: 700;
+        }
+
+        .policy-section {
+            background: #e7f3ff;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .policy-section h3 {
+            color: #0066cc;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+
+        .policy-section ul {
+            margin-left: 20px;
+            color: #004085;
+            font-size: 13px;
+        }
+
+        .policy-section li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .claim-narrative {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 2px solid #667eea;
+        }
+
+        .claim-narrative h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .claim-narrative-text {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            color: #333;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+
+        .progress-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .progress-step {
+            text-align: center;
+            flex: 1;
+        }
+
+        .progress-step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e9ecef;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 5px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .progress-step.completed .progress-step-number {
+            background: #28a745;
+            color: white;
+        }
+
+        .progress-step-label {
+            font-size: 11px;
+            color: #6c757d;
+        }
+
+        .small-text {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .category-btn {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            font-size: 13px;
+        }
+
+        .category-btn:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .category-btn.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .export-options {
+            display: grid;
+            gap: 10px;
+        }
+
+        .export-btn {
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+        }
+
+        .export-btn:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .export-icon {
+            font-size: 24px;
+        }
+
+        .export-info h4 {
+            font-size: 15px;
+            margin-bottom: 3px;
+        }
+
+        .export-info p {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .deadline-warning {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .deadline-warning.urgent {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+
+        .deadline-warning.warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+        }
+
+        .deadline-warning.good {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .deadline-timer {
+            font-size: 24px;
+            margin: 8px 0;
+        }
+
+        .deadline-date {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 ClaimMax</h1>
+            <p>Maximize Your Airbnb Damage Claims</p>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('photos')">📸 Photos</button>
+            <button class="nav-tab" onclick="switchTab('damages')">💰 Damages</button>
+            <button class="nav-tab" onclick="switchTab('policy')">📋 Policy</button>
+            <button class="nav-tab" onclick="switchTab('claim')">📄 Claim</button>
+        </div>
+
+        <!-- Photos Tab -->
+        <div id="photos-tab" class="tab-content active">
+            <div class="progress-indicator">
+                <div class="progress-step completed">
+                    <div class="progress-step-number">1</div>
+                    <div class="progress-step-label">Document</div>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-step-number">2</div>
+                    <div class="progress-step-label">Calculate</div>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-step-number">3</div>
+                    <div class="progress-step-label">Submit</div>
+                </div>
+            </div>
+
+            <div class="tip-card">
+                <h3>💡 Pro Tip</h3>
+                <p>Take photos showing the full context, then close-ups of damage. Include comparison photos of the same area in pristine condition if possible.</p>
+            </div>
+
+            <div class="form-group">
+                <label>Property Name</label>
+                <input type="text" id="property-name" placeholder="e.g., Beach House Downtown">
+            </div>
+
+            <div class="form-group">
+                <label>Guest Name</label>
+                <input type="text" id="guest-name" placeholder="e.g., John Smith">
+            </div>
+
+            <div class="form-group">
+                <label>Checkout Date</label>
+                <input type="date" id="checkout-date" onchange="updateDeadline()">
+                <div class="small-text">Select the date the guest checked out</div>
+            </div>
+
+            <div id="deadline-warning" style="display: none;"></div>
+
+            <div class="form-group">
+                <label>Upload Damage Photos</label>
+                <div class="photo-upload-area" onclick="document.getElementById('photo-input').click()">
+                    <div class="upload-icon">📷</div>
+                    <div style="font-weight: 600; margin-bottom: 5px;">Tap to add photos</div>
+                    <div class="small-text">Take multiple angles of each damage</div>
+                    <input type="file" id="photo-input" accept="image/*" multiple onchange="handlePhotoUpload(event)">
+                </div>
+            </div>
+
+            <div id="photos-grid" class="photos-grid"></div>
+        </div>
+
+        <!-- Damages Tab -->
+        <div id="damages-tab" class="tab-content">
+            <div class="total-claim">
+                <h2>Total Claim Amount</h2>
+                <div class="amount" id="total-amount">$0.00</div>
+            </div>
+
+            <div class="tip-card">
+                <h3>💡 Maximizing Your Claim</h3>
+                <p>Always request the replacement cost, not repair cost. Include photos showing brand/model. Document cleaning fees separately from damage.</p>
+            </div>
+
+            <button class="btn btn-primary" onclick="openDamageModal()">+ Add Damage Item</button>
+
+            <div id="damages-list"></div>
+        </div>
+
+        <!-- Policy Tab -->
+        <div id="policy-tab" class="tab-content">
+            <div class="policy-section">
+                <h3>🎯 Airbnb Host Damage Protection</h3>
+                <ul>
+                    <li><strong>Coverage Limit:</strong> Up to $3,000,000 per incident</li>
+                    <li><strong>Reporting Window:</strong> 14 days after checkout or before next guest checks in</li>
+                    <li><strong>Guest Response:</strong> Guests have 72 hours to respond to claims</li>
+                    <li><strong>Documentation Required:</strong> Photos, receipts, and detailed description</li>
+                </ul>
+            </div>
+
+            <div class="tip-card">
+                <h3>✅ Best Practices for Maximum Payout</h3>
+                <p><strong>1. Document IMMEDIATELY</strong> - Take photos within 24 hours of discovery</p>
+                <p><strong>2. Compare to Pre-Damage</strong> - Reference your listing photos showing the item pristine</p>
+                <p><strong>3. Get Multiple Quotes</strong> - Obtain 2-3 repair/replacement estimates</p>
+                <p><strong>4. Be Specific</strong> - Include exact item names, brands, and model numbers</p>
+                <p><strong>5. Separate Categories</strong> - File cleaning fees separately from damage claims</p>
+            </div>
+
+            <div class="policy-section">
+                <h3>⚠️ Common Claim Mistakes to Avoid</h3>
+                <ul>
+                    <li>Waiting too long to file (file within 14 days)</li>
+                    <li>Poor quality photos (use good lighting, multiple angles)</li>
+                    <li>Vague descriptions ("broken table" vs "32-inch gouge in walnut dining table")</li>
+                    <li>No receipts or proof of value</li>
+                    <li>Claiming wear-and-tear as damage</li>
+                    <li>Not responding to Airbnb requests promptly</li>
+                </ul>
+            </div>
+
+            <div class="tip-card">
+                <h3>📞 Escalation Strategy</h3>
+                <p>If your claim is denied or underpaid:</p>
+                <p>1. Request a supervisor review<br>
+                2. Reference Airbnb's Host Damage Protection policy<br>
+                3. Provide additional documentation if requested<br>
+                4. Consider filing with your insurance as backup<br>
+                5. Share on host forums for community support</p>
+            </div>
+        </div>
+
+        <!-- Claim Tab -->
+        <div id="claim-tab" class="tab-content">
+            <div class="total-claim">
+                <h2>Ready to Submit</h2>
+                <div class="amount" id="claim-total-amount">$0.00</div>
+            </div>
+
+            <div class="claim-narrative" id="narrative-section" style="display: none;">
+                <h3>Your Claim Narrative</h3>
+                <div class="claim-narrative-text" id="claim-narrative-text"></div>
+            </div>
+
+            <button class="btn btn-primary" onclick="generateNarrative()" id="generate-btn">Generate Claim Narrative</button>
+
+            <div class="export-options" id="export-section" style="display: none; margin-top: 20px;">
+                <h3 style="margin-bottom: 15px;">Export Your Claim</h3>
+                
+                <div class="export-btn" onclick="exportAsText()">
+                    <div class="export-icon">📄</div>
+                    <div class="export-info">
+                        <h4>Text Format</h4>
+                        <p>Copy and paste into Airbnb Resolution Center</p>
+                    </div>
+                </div>
+
+                <div class="export-btn" onclick="exportAsPDF()">
+                    <div class="export-icon">📑</div>
+                    <div class="export-info">
+                        <h4>PDF Report</h4>
+                        <p>Professional documentation with photos</p>
+                    </div>
+                </div>
+
+                <div class="export-btn" onclick="exportAsCSV()">
+                    <div class="export-icon">📊</div>
+                    <div class="export-info">
+                        <h4>CSV Spreadsheet</h4>
+                        <p>Itemized damage list for tracking and records</p>
+                    </div>
+                </div>
+
+                <div class="export-btn" onclick="exportAsEmail()">
+                    <div class="export-icon">✉️</div>
+                    <div class="export-info">
+                        <h4>Email Template</h4>
+                        <p>Pre-formatted for Airbnb support</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tip-card" style="margin-top: 20px;">
+                <h3>📝 Submission Checklist</h3>
+                <p>✓ All damage items documented with photos<br>
+                ✓ Costs calculated and justified<br>
+                ✓ Timeline of discovery included<br>
+                ✓ Submitted within 14 days of checkout<br>
+                ✓ Copy saved for your records</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Damage Modal -->
+    <div id="damage-modal" class="modal">
+        <div class="modal-content" style="position: relative;">
+            <button class="close-modal" onclick="closeDamageModal()">×</button>
+            <div class="modal-header">
+                <h2>Add Damage Item</h2>
+            </div>
+
+            <div class="form-group">
+                <label>Damage Category</label>
+                <div class="category-grid">
+                    <div class="category-btn" onclick="selectCategory(this, 'Furniture')">🪑 Furniture</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Appliance')">🔌 Appliance</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Linens')">🛏️ Linens</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Walls/Paint')">🎨 Walls/Paint</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Flooring')">🏠 Flooring</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Decor')">🖼️ Decor</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Electronics')">📺 Electronics</div>
+                    <div class="category-btn" onclick="selectCategory(this, 'Other')">📦 Other</div>
+                </div>
+                <input type="hidden" id="damage-category">
+            </div>
+
+            <div class="form-group">
+                <label>Item Description</label>
+                <input type="text" id="damage-item" placeholder="e.g., Queen Bed Duvet Cover - White">
+            </div>
+
+            <div class="form-group">
+                <label>Damage Description</label>
+                <textarea id="damage-description" placeholder="Describe the damage in detail. Include brand, model, size, material, etc."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Cost to Replace/Repair ($)</label>
+                <input type="number" id="damage-cost" placeholder="0.00" step="0.01">
+                <div class="small-text">Enter replacement cost for best results</div>
+            </div>
+
+            <button class="btn btn-primary" onclick="addDamageItem()">Add to Claim</button>
+            <button class="btn btn-secondary" onclick="closeDamageModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        let photos = [];
+        let damages = [];
+        let selectedCategory = '';
+        let deadlineInterval = null;
+
+        function updateDeadline() {
+            const checkoutDate = document.getElementById('checkout-date').value;
+            const warningDiv = document.getElementById('deadline-warning');
+            
+            if (!checkoutDate) {
+                warningDiv.style.display = 'none';
+                if (deadlineInterval) {
+                    clearInterval(deadlineInterval);
+                }
+                return;
+            }
+
+            // Calculate deadline (14 days from checkout)
+            const checkout = new Date(checkoutDate);
+            checkout.setHours(0, 0, 0, 0);
+            const deadline = new Date(checkout);
+            deadline.setDate(deadline.getDate() + 14);
+            deadline.setHours(23, 59, 59, 999);
+
+            // Update countdown every second
+            if (deadlineInterval) {
+                clearInterval(deadlineInterval);
+            }
+
+            function updateCountdown() {
+                const now = new Date();
+                const timeLeft = deadline - now;
+                
+                if (timeLeft < 0) {
+                    warningDiv.className = 'deadline-warning urgent';
+                    warningDiv.innerHTML = `
+                        <div>⚠️ DEADLINE PASSED</div>
+                        <div class="deadline-timer">Claim period expired</div>
+                        <div class="deadline-date">You can still try filing, but coverage may not apply</div>
+                    `;
+                    warningDiv.style.display = 'block';
+                    clearInterval(deadlineInterval);
+                    return;
+                }
+
+                const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+                let timerText = '';
+                if (days > 0) {
+                    timerText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+                } else if (hours > 0) {
+                    timerText = `${hours}h ${minutes}m ${seconds}s`;
+                } else {
+                    timerText = `${minutes}m ${seconds}s`;
+                }
+
+                let className = 'deadline-warning good';
+                let icon = '✅';
+                let message = 'Plenty of time to file';
+
+                if (days < 1) {
+                    className = 'deadline-warning urgent';
+                    icon = '🚨';
+                    message = 'FILE IMMEDIATELY - Less than 24 hours left!';
+                } else if (days < 3) {
+                    className = 'deadline-warning urgent';
+                    icon = '⚠️';
+                    message = 'URGENT - File claim soon!';
+                } else if (days < 7) {
+                    className = 'deadline-warning warning';
+                    icon = '⏰';
+                    message = 'File your claim this week';
+                }
+
+                const deadlineFormatted = deadline.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                warningDiv.className = className;
+                warningDiv.innerHTML = `
+                    <div>${icon} ${message}</div>
+                    <div class="deadline-timer">${timerText}</div>
+                    <div class="deadline-date">Deadline: ${deadlineFormatted}</div>
+                `;
+                warningDiv.style.display = 'block';
+            }
+
+            updateCountdown();
+            deadlineInterval = setInterval(updateCountdown, 1000);
+        }
+
+        function switchTab(tabName) {
+            // Update nav tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Update progress
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const steps = document.querySelectorAll('.progress-step');
+            steps.forEach(step => step.classList.remove('completed'));
+            
+            if (photos.length > 0) {
+                steps[0].classList.add('completed');
+            }
+            if (damages.length > 0) {
+                steps[1].classList.add('completed');
+            }
+            if (damages.length > 0 && photos.length > 0) {
+                steps[2].classList.add('completed');
+            }
+        }
+
+        function handlePhotoUpload(event) {
+            const files = Array.from(event.target.files);
+            
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    photos.push({
+                        id: Date.now() + Math.random(),
+                        src: e.target.result,
+                        annotation: ''
+                    });
+                    renderPhotos();
+                    updateProgress();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderPhotos() {
+            const grid = document.getElementById('photos-grid');
+            
+            if (photos.length === 0) {
+                grid.innerHTML = '';
+                return;
+            }
+
+            grid.innerHTML = photos.map(photo => `
+                <div class="photo-item">
+                    <img src="${photo.src}" alt="Damage photo">
+                    <div class="photo-item-actions">
+                        <button class="photo-item-btn" onclick="annotatePhoto(${photo.id})" title="Add note">📝</button>
+                        <button class="photo-item-btn" onclick="deletePhoto(${photo.id})" title="Delete">🗑️</button>
+                    </div>
+                    ${photo.annotation ? `<div class="photo-annotation">${photo.annotation}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function annotatePhoto(photoId) {
+            const photo = photos.find(p => p.id === photoId);
+            const annotation = prompt('Add a note to this photo:', photo.annotation);
+            if (annotation !== null) {
+                photo.annotation = annotation;
+                renderPhotos();
+            }
+        }
+
+        function deletePhoto(photoId) {
+            if (confirm('Delete this photo?')) {
+                photos = photos.filter(p => p.id !== photoId);
+                renderPhotos();
+                updateProgress();
+            }
+        }
+
+        function selectCategory(element, category) {
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedCategory = category;
+            document.getElementById('damage-category').value = category;
+        }
+
+        function openDamageModal() {
+            document.getElementById('damage-modal').classList.add('active');
+            // Reset form
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
+            selectedCategory = '';
+            document.getElementById('damage-item').value = '';
+            document.getElementById('damage-description').value = '';
+            document.getElementById('damage-cost').value = '';
+        }
+
+        function closeDamageModal() {
+            document.getElementById('damage-modal').classList.remove('active');
+        }
+
+        function addDamageItem() {
+            const category = selectedCategory;
+            const item = document.getElementById('damage-item').value;
+            const description = document.getElementById('damage-description').value;
+            const cost = parseFloat(document.getElementById('damage-cost').value);
+
+            if (!category || !item || !description || !cost) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            damages.push({
+                id: Date.now(),
+                category,
+                item,
+                description,
+                cost
+            });
+
+            renderDamages();
+            updateTotals();
+            closeDamageModal();
+            updateProgress();
+        }
+
+        function renderDamages() {
+            const list = document.getElementById('damages-list');
+            
+            if (damages.length === 0) {
+                list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><p>No damage items added yet</p></div>';
+                return;
+            }
+
+            list.innerHTML = damages.map(damage => `
+                <div class="damage-item">
+                    <div class="damage-item-header">
+                        <div class="damage-category">${damage.category}</div>
+                        <div class="damage-cost">$${damage.cost.toFixed(2)}</div>
+                    </div>
+                    <div style="font-weight: 600; margin-bottom: 5px;">${damage.item}</div>
+                    <div class="damage-description">${damage.description}</div>
+                    <button class="btn btn-danger" style="margin-top: 10px; font-size: 13px; padding: 8px;" onclick="deleteDamage(${damage.id})">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteDamage(damageId) {
+            if (confirm('Remove this damage item?')) {
+                damages = damages.filter(d => d.id !== damageId);
+                renderDamages();
+                updateTotals();
+                updateProgress();
+            }
+        }
+
+        function updateTotals() {
+            const total = damages.reduce((sum, damage) => sum + damage.cost, 0);
+            document.getElementById('total-amount').textContent = `$${total.toFixed(2)}`;
+            document.getElementById('claim-total-amount').textContent = `$${total.toFixed(2)}`;
+        }
+
+        function generateNarrative() {
+            if (damages.length === 0) {
+                alert('Please add at least one damage item first');
+                return;
+            }
+
+            const propertyName = document.getElementById('property-name').value || 'my property';
+            const guestName = document.getElementById('guest-name').value || 'the guest';
+            const checkoutDate = document.getElementById('checkout-date').value;
+            const checkoutFormatted = checkoutDate ? new Date(checkoutDate).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            }) : 'their recent stay';
+            const total = damages.reduce((sum, damage) => sum + damage.cost, 0);
+
+            let narrative = `DAMAGE CLAIM SUMMARY\n\n`;
+            narrative += `Property: ${propertyName}\n`;
+            narrative += `Guest: ${guestName}\n`;
+            narrative += `Checkout Date: ${checkoutFormatted}\n`;
+            narrative += `Total Claim Amount: $${total.toFixed(2)}\n\n`;
+            narrative += `INCIDENT DESCRIPTION:\n\n`;
+            narrative += `During the guest's stay at ${propertyName}, the following damages were discovered upon checkout inspection:\n\n`;
+
+            damages.forEach((damage, index) => {
+                narrative += `${index + 1}. ${damage.category} - ${damage.item}\n`;
+                narrative += `   Damage: ${damage.description}\n`;
+                narrative += `   Replacement Cost: $${damage.cost.toFixed(2)}\n\n`;
+            });
+
+            narrative += `SUPPORTING DOCUMENTATION:\n\n`;
+            narrative += `• ${photos.length} photos documenting the damage\n`;
+            narrative += `• Detailed descriptions of each damaged item\n`;
+            narrative += `• Cost estimates for replacement/repair\n\n`;
+            
+            narrative += `The property was in pristine condition before this reservation, as evidenced by my listing photos and previous guest reviews. `;
+            narrative += `All damages listed above were caused during ${guestName}'s stay and were not present during check-in. `;
+            narrative += `I have attempted to resolve this matter directly but require Airbnb's assistance through the Host Damage Protection program.\n\n`;
+            
+            narrative += `I am requesting full reimbursement of $${total.toFixed(2)} for the documented damages. `;
+            narrative += `All supporting photos and documentation are attached to this claim.\n\n`;
+            
+            narrative += `Thank you for your assistance in resolving this matter.\n`;
+
+            document.getElementById('claim-narrative-text').textContent = narrative;
+            document.getElementById('narrative-section').style.display = 'block';
+            document.getElementById('export-section').style.display = 'block';
+            document.getElementById('generate-btn').textContent = 'Regenerate Claim Narrative';
+        }
+
+        function exportAsText() {
+            const narrative = document.getElementById('claim-narrative-text').textContent;
+            const blob = new Blob([narrative], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'airbnb-damage-claim.txt';
+            a.click();
+            alert('Claim exported! You can now paste this into the Airbnb Resolution Center.');
+        }
+
+        function exportAsPDF() {
+            if (damages.length === 0) {
+                alert('Please add damage items before exporting');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const propertyName = document.getElementById('property-name').value || 'Property Name Not Provided';
+            const guestName = document.getElementById('guest-name').value || 'Guest Name Not Provided';
+            const checkoutDate = document.getElementById('checkout-date').value;
+            const checkoutFormatted = checkoutDate ? new Date(checkoutDate).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            }) : 'Not Provided';
+            const total = damages.reduce((sum, damage) => sum + damage.cost, 0);
+            
+            let yPos = 20;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const margin = 20;
+            const contentWidth = pageWidth - (2 * margin);
+
+            // Header with gradient effect (simulated with colored rectangle)
+            doc.setFillColor(102, 126, 234);
+            doc.rect(0, 0, pageWidth, 40, 'F');
+            
+            // Title
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(24);
+            doc.setFont(undefined, 'bold');
+            doc.text('DAMAGE CLAIM REPORT', pageWidth / 2, 20, { align: 'center' });
+            
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'normal');
+            doc.text('Generated by ClaimMax for Airbnb Hosts', pageWidth / 2, 30, { align: 'center' });
+            
+            yPos = 55;
+            doc.setTextColor(0, 0, 0);
+            
+            // Claim Summary Box
+            doc.setFillColor(248, 249, 250);
+            doc.roundedRect(margin, yPos, contentWidth, 45, 3, 3, 'F');
+            
+            yPos += 10;
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('CLAIM SUMMARY', margin + 5, yPos);
+            
+            yPos += 8;
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Property: ${propertyName}`, margin + 5, yPos);
+            
+            yPos += 6;
+            doc.text(`Guest: ${guestName}`, margin + 5, yPos);
+            
+            yPos += 6;
+            doc.text(`Checkout Date: ${checkoutFormatted}`, margin + 5, yPos);
+            
+            yPos += 6;
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(40, 167, 69);
+            doc.setFontSize(11);
+            doc.text(`Total Claim Amount: $${total.toFixed(2)}`, margin + 5, yPos);
+            doc.setTextColor(0, 0, 0);
+            
+            yPos += 15;
+            
+            // Damages Section
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.text('ITEMIZED DAMAGES', margin, yPos);
+            yPos += 10;
+            
+            damages.forEach((damage, index) => {
+                // Check if we need a new page
+                if (yPos > 250) {
+                    doc.addPage();
+                    yPos = 20;
+                }
+                
+                // Damage item box
+                doc.setFillColor(248, 249, 250);
+                const boxHeight = 35;
+                doc.roundedRect(margin, yPos, contentWidth, boxHeight, 2, 2, 'F');
+                
+                // Item number and category
+                doc.setFontSize(11);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(102, 126, 234);
+                doc.text(`${index + 1}. ${damage.category}`, margin + 3, yPos + 7);
+                
+                // Cost (right aligned)
+                doc.setTextColor(40, 167, 69);
+                doc.text(`$${damage.cost.toFixed(2)}`, pageWidth - margin - 3, yPos + 7, { align: 'right' });
+                
+                // Item name
+                doc.setTextColor(0, 0, 0);
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(10);
+                doc.text(damage.item, margin + 3, yPos + 14);
+                
+                // Description (with text wrapping)
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(108, 117, 125);
+                const lines = doc.splitTextToSize(damage.description, contentWidth - 10);
+                doc.text(lines.slice(0, 2), margin + 3, yPos + 20); // Limit to 2 lines
+                
+                yPos += boxHeight + 5;
+            });
+            
+            // Photo count
+            yPos += 5;
+            if (yPos > 250) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            doc.setFillColor(255, 243, 205);
+            doc.roundedRect(margin, yPos, contentWidth, 25, 2, 2, 'F');
+            doc.setFontSize(10);
+            doc.setTextColor(133, 100, 4);
+            doc.setFont(undefined, 'bold');
+            doc.text('📸 SUPPORTING DOCUMENTATION', margin + 3, yPos + 8);
+            doc.setFont(undefined, 'normal');
+            doc.text(`• ${photos.length} photos documenting damage`, margin + 3, yPos + 15);
+            doc.text(`• Detailed descriptions and cost estimates`, margin + 3, yPos + 20);
+            
+            yPos += 35;
+            
+            // Policy reminder
+            if (yPos > 230) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            doc.setFillColor(231, 243, 255);
+            doc.roundedRect(margin, yPos, contentWidth, 35, 2, 2, 'F');
+            doc.setFontSize(10);
+            doc.setTextColor(0, 102, 204);
+            doc.setFont(undefined, 'bold');
+            doc.text('ℹ️ AIRBNB POLICY REMINDER', margin + 3, yPos + 8);
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(9);
+            doc.text('• File within 14 days of checkout', margin + 3, yPos + 15);
+            doc.text('• Host Damage Protection covers up to $3M per incident', margin + 3, yPos + 21);
+            doc.text('• Include all photos and documentation with your claim', margin + 3, yPos + 27);
+            
+            yPos += 45;
+            
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+                doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            }
+            
+            // Save the PDF
+            const fileName = `Airbnb-Damage-Claim-${guestName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+            
+            // Show success message
+            alert('PDF report generated successfully! Check your downloads folder.');
+        }
+
+        function exportAsCSV() {
+            if (damages.length === 0) {
+                alert('Please add damage items before exporting');
+                return;
+            }
+
+            const propertyName = document.getElementById('property-name').value || 'Not Provided';
+            const guestName = document.getElementById('guest-name').value || 'Not Provided';
+            const checkoutDate = document.getElementById('checkout-date').value;
+            const checkoutFormatted = checkoutDate ? new Date(checkoutDate).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            }) : 'Not Provided';
+            const total = damages.reduce((sum, damage) => sum + damage.cost, 0);
+
+            // Create CSV header
+            let csv = 'Airbnb Damage Claim - Itemized List\n\n';
+            csv += `Property:,${propertyName}\n`;
+            csv += `Guest:,${guestName}\n`;
+            csv += `Checkout Date:,${checkoutFormatted}\n`;
+            csv += `Total Claim Amount:,$${total.toFixed(2)}\n`;
+            csv += `Number of Items:,${damages.length}\n`;
+            csv += `Photos Attached:,${photos.length}\n\n`;
+
+            // Create damage items table
+            csv += 'Item #,Category,Item Description,Damage Description,Cost\n';
+
+            damages.forEach((damage, index) => {
+                // Escape commas and quotes in descriptions
+                const escapeCSV = (str) => {
+                    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                        return `"${str.replace(/"/g, '""')}"`;
+                    }
+                    return str;
+                };
+
+                csv += `${index + 1},`;
+                csv += `${escapeCSV(damage.category)},`;
+                csv += `${escapeCSV(damage.item)},`;
+                csv += `${escapeCSV(damage.description)},`;
+                csv += `$${damage.cost.toFixed(2)}\n`;
+            });
+
+            // Add summary row
+            csv += `\n,,,TOTAL:,$${total.toFixed(2)}\n`;
+
+            // Add metadata
+            csv += `\n\nGenerated By:,ClaimMax for Airbnb Hosts\n`;
+            csv += `Export Date:,${new Date().toLocaleString()}\n`;
+
+            // Create download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const fileName = `Airbnb-Damage-Claim-${guestName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', fileName);
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            alert('CSV file generated successfully! Check your downloads folder.\n\nYou can open this file in Excel, Google Sheets, or any spreadsheet application.');
+        }
+
+        function exportAsEmail() {
+            const narrative = document.getElementById('claim-narrative-text').textContent;
+            const subject = 'Damage Claim - Airbnb Reservation';
+            const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(narrative)}`;
+            window.location.href = mailtoLink;
+        }
+
+        // Initialize
+        renderPhotos();
+        renderDamages();
+        updateTotals();
+        updateProgress();
+        updateDeadline();
+    </script>
+</body>
+</html>
