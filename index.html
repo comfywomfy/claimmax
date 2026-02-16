@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ClaimMax - Airbnb Damage Claims</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&libraries=places&callback=initAutocomplete" async defer></script>
     <style>
         * {
             margin: 0;
@@ -591,6 +592,38 @@
             opacity: 0.9;
             margin-top: 5px;
         }
+
+        /* Google Places Autocomplete styling */
+        .pac-container {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            border-radius: 8px;
+            margin-top: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border: 2px solid #667eea;
+        }
+
+        .pac-item {
+            padding: 10px;
+            cursor: pointer;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .pac-item:first-child {
+            border-top: none;
+        }
+
+        .pac-item:hover {
+            background-color: #f8f9ff;
+        }
+
+        .pac-item-query {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .pac-icon {
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -630,8 +663,9 @@
             </div>
 
             <div class="form-group">
-                <label>Property Name</label>
-                <input type="text" id="property-name" placeholder="e.g., Beach House Downtown">
+                <label>Property Address</label>
+                <input type="text" id="property-address" placeholder="Start typing your property address...">
+                <div class="small-text">Start typing and select from the dropdown</div>
             </div>
 
             <div class="form-group">
@@ -826,11 +860,164 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+        import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
+
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDo1lUHtxzpmLZI6S0qY4mVvZrWKuEktQk",
+            authDomain: "claim-max.firebaseapp.com",
+            projectId: "claim-max",
+            storageBucket: "claim-max.firebasestorage.app",
+            messagingSenderId: "285956505580",
+            appId: "1:285956505580:web:1cef21b8818eca47784ac9",
+            measurementId: "G-Y7VTV0SVBH"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        // Make db and storage available globally
+        window.firestoreDb = db;
+        window.firestoreAddDoc = addDoc;
+        window.firestoreCollection = collection;
+        window.firestoreServerTimestamp = serverTimestamp;
+        window.firebaseStorage = storage;
+        window.firebaseStorageRef = ref;
+        window.firebaseUploadString = uploadString;
+        window.firebaseGetDownloadURL = getDownloadURL;
+
+        console.log('Firebase initialized successfully');
+    </script>
+
     <script>
         let photos = [];
         let damages = [];
         let selectedCategory = '';
         let deadlineInterval = null;
+        let autocomplete = null;
+        let selectedAddress = '';
+
+        // Initialize Google Places Autocomplete
+        function initAutocomplete() {
+            const input = document.getElementById('property-address');
+            
+            if (!input || !window.google) {
+                console.log('Google Maps not loaded yet or input not found');
+                return;
+            }
+
+            autocomplete = new google.maps.places.Autocomplete(input, {
+                types: ['address'],
+                fields: ['formatted_address', 'address_components', 'geometry']
+            });
+
+            autocomplete.addListener('place_changed', function() {
+                const place = autocomplete.getPlace();
+                
+                if (!place.geometry) {
+                    console.log('No details available for input: ' + input.value);
+                    return;
+                }
+
+                selectedAddress = place.formatted_address;
+                input.value = selectedAddress;
+                console.log('Selected address:', selectedAddress);
+            });
+        }
+
+        // Fallback if Google Maps doesn't load
+        window.initAutocomplete = initAutocomplete;
+
+        // Upload photos to Firebase Storage
+        async function uploadPhotosToStorage(claimId) {
+            if (!window.firebaseStorage) {
+                console.error('Firebase Storage not initialized');
+                return [];
+            }
+
+            const uploadedPhotos = [];
+            
+            for (let i = 0; i < photos.length; i++) {
+                try {
+                    const photo = photos[i];
+                    const photoRef = window.firebaseStorageRef(
+                        window.firebaseStorage,
+                        `claims/${claimId}/photo_${i + 1}_${Date.now()}.jpg`
+                    );
+
+                    // Upload the base64 image
+                    await window.firebaseUploadString(photoRef, photo.src, 'data_url');
+                    
+                    // Get the download URL
+                    const downloadURL = await window.firebaseGetDownloadURL(photoRef);
+                    
+                    uploadedPhotos.push({
+                        url: downloadURL,
+                        annotation: photo.annotation || '',
+                        uploadedAt: new Date().toISOString()
+                    });
+
+                    console.log(`Photo ${i + 1} uploaded successfully`);
+                } catch (error) {
+                    console.error(`Error uploading photo ${i + 1}:`, error);
+                }
+            }
+
+            return uploadedPhotos;
+        }
+
+        // Save claim data to Firebase
+        async function saveToDatabase(claimData) {
+            try {
+                // Check if Firebase is loaded
+                if (!window.firestoreDb) {
+                    console.error('Firebase not initialized');
+                    return { success: false, error: 'Database not ready' };
+                }
+
+                // First, create the claim document to get an ID
+                const docRef = await window.firestoreAddDoc(
+                    window.firestoreCollection(window.firestoreDb, 'claims'),
+                    {
+                        ...claimData,
+                        photoUploadStatus: 'uploading',
+                        createdAt: window.firestoreServerTimestamp(),
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform
+                    }
+                );
+
+                console.log('Document created with ID: ', docRef.id);
+
+                // Upload photos if any exist
+                let photoUrls = [];
+                if (photos.length > 0) {
+                    console.log(`Uploading ${photos.length} photos...`);
+                    photoUrls = await uploadPhotosToStorage(docRef.id);
+                    
+                    // Update the document with photo URLs
+                    const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js");
+                    await updateDoc(doc(window.firestoreDb, 'claims', docRef.id), {
+                        photos: photoUrls,
+                        photoUploadStatus: 'completed',
+                        numberOfPhotos: photoUrls.length
+                    });
+                    console.log(`${photoUrls.length} photos uploaded successfully`);
+                }
+
+                return { success: true, id: docRef.id, photosUploaded: photoUrls.length };
+            } catch (error) {
+                console.error('Error adding document: ', error);
+                return { success: false, error: error.message };
+            }
+        }
 
         function updateDeadline() {
             const checkoutDate = document.getElementById('checkout-date').value;
@@ -1097,7 +1284,7 @@
                 return;
             }
 
-            const propertyName = document.getElementById('property-name').value || 'my property';
+            const propertyAddress = document.getElementById('property-address').value || 'Property Address Not Provided';
             const guestName = document.getElementById('guest-name').value || 'the guest';
             const checkoutDate = document.getElementById('checkout-date').value;
             const checkoutFormatted = checkoutDate ? new Date(checkoutDate).toLocaleDateString('en-US', { 
@@ -1108,12 +1295,12 @@
             const total = damages.reduce((sum, damage) => sum + damage.cost, 0);
 
             let narrative = `DAMAGE CLAIM SUMMARY\n\n`;
-            narrative += `Property: ${propertyName}\n`;
+            narrative += `Property Address: ${propertyAddress}\n`;
             narrative += `Guest: ${guestName}\n`;
             narrative += `Checkout Date: ${checkoutFormatted}\n`;
             narrative += `Total Claim Amount: $${total.toFixed(2)}\n\n`;
             narrative += `INCIDENT DESCRIPTION:\n\n`;
-            narrative += `During the guest's stay at ${propertyName}, the following damages were discovered upon checkout inspection:\n\n`;
+            narrative += `During the guest's stay at the property located at ${propertyAddress}, the following damages were discovered upon checkout inspection:\n\n`;
 
             damages.forEach((damage, index) => {
                 narrative += `${index + 1}. ${damage.category} - ${damage.item}\n`;
@@ -1139,6 +1326,48 @@
             document.getElementById('narrative-section').style.display = 'block';
             document.getElementById('export-section').style.display = 'block';
             document.getElementById('generate-btn').textContent = 'Regenerate Claim Narrative';
+
+            // Save to Firebase
+            const claimData = {
+                propertyAddress: propertyAddress,
+                guestName: guestName,
+                checkoutDate: checkoutDate,
+                checkoutDateFormatted: checkoutFormatted,
+                totalAmount: total,
+                numberOfDamages: damages.length,
+                numberOfPhotos: photos.length,
+                damages: damages.map(d => ({
+                    category: d.category,
+                    item: d.item,
+                    description: d.description,
+                    cost: d.cost
+                })),
+                narrative: narrative
+            };
+
+            // Save to database
+            saveToDatabase(claimData).then(result => {
+                if (result.success) {
+                    console.log('✅ Claim saved to database with ID:', result.id);
+                    if (result.photosUploaded > 0) {
+                        console.log(`✅ ${result.photosUploaded} photos uploaded`);
+                    }
+                    // Show success indicator
+                    const generateBtn = document.getElementById('generate-btn');
+                    const originalText = generateBtn.textContent;
+                    if (result.photosUploaded > 0) {
+                        generateBtn.textContent = `✓ Saved with ${result.photosUploaded} photos`;
+                    } else {
+                        generateBtn.textContent = '✓ Saved to Database';
+                    }
+                    setTimeout(() => {
+                        generateBtn.textContent = originalText;
+                    }, 3000);
+                } else {
+                    console.error('❌ Failed to save claim:', result.error);
+                    alert('Failed to save claim to database. Please try again.');
+                }
+            });
         }
 
         function exportAsText() {
@@ -1161,7 +1390,7 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
-            const propertyName = document.getElementById('property-name').value || 'Property Name Not Provided';
+            const propertyAddress = document.getElementById('property-address').value || 'Property Address Not Provided';
             const guestName = document.getElementById('guest-name').value || 'Guest Name Not Provided';
             const checkoutDate = document.getElementById('checkout-date').value;
             const checkoutFormatted = checkoutDate ? new Date(checkoutDate).toLocaleDateString('en-US', { 
@@ -1205,7 +1434,7 @@
             yPos += 8;
             doc.setFontSize(10);
             doc.setFont(undefined, 'normal');
-            doc.text(`Property: ${propertyName}`, margin + 5, yPos);
+            doc.text(`Property: ${propertyAddress}`, margin + 5, yPos);
             
             yPos += 6;
             doc.text(`Guest: ${guestName}`, margin + 5, yPos);
@@ -1329,7 +1558,7 @@
                 return;
             }
 
-            const propertyName = document.getElementById('property-name').value || 'Not Provided';
+            const propertyAddress = document.getElementById('property-address').value || 'Not Provided';
             const guestName = document.getElementById('guest-name').value || 'Not Provided';
             const checkoutDate = document.getElementById('checkout-date').value;
             const checkoutFormatted = checkoutDate ? new Date(checkoutDate).toLocaleDateString('en-US', { 
@@ -1341,7 +1570,7 @@
 
             // Create CSV header
             let csv = 'Airbnb Damage Claim - Itemized List\n\n';
-            csv += `Property:,${propertyName}\n`;
+            csv += `Property Address:,${propertyAddress}\n`;
             csv += `Guest:,${guestName}\n`;
             csv += `Checkout Date:,${checkoutFormatted}\n`;
             csv += `Total Claim Amount:,$${total.toFixed(2)}\n`;
